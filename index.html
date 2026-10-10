@@ -1,64 +1,103 @@
-
 <!DOCTYPE html>
 <html lang="az">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Təhlükəsizlik</title>
+<title>Foto çək</title>
 <style>
-body{font-family:Arial;text-align:center;padding:20px}
-button{padding:14px;font-size:17px}
-video{width:100%;max-width:400px}
-canvas{display:none}
+body {
+  margin: 0;
+  padding: 20px;
+  font-family: Arial, sans-serif;
+  text-align: center;
+  background: white;
+}
+button {
+  padding: 14px 20px;
+  font-size: 17px;
+  margin: 10px;
+}
+video {
+  width: 100%;
+  max-width: 400px;
+  margin-top: 15px;
+}
+canvas {
+  display: none;
+}
 </style>
 </head>
 <body>
-<button id="start">Foto çək və göndər</button>
-<div id="camera"></div>
-<canvas id="photo"></canvas>
-<script>
-const SCRIPT_URL =
-"https://script.google.com/macros/s/AKfycbxneoW2kBbOcoBtqNvZDaYtdxS1foRS3iHiUDUqGddLJ3iimAon9MRwRiT27Ehb4rI/exec";
 
-document.getElementById("start").onclick = async () => {
+<button id="start">Ön kameranı aç</button>
+<button id="capture" hidden>Foto çək</button>
+
+<div id="camera"></div>
+<div id="result"></div>
+<canvas id="photo"></canvas>
+
+<script>
+let stream;
+let video;
+
+const startButton = document.getElementById("start");
+const captureButton = document.getElementById("capture");
+const camera = document.getElementById("camera");
+const result = document.getElementById("result");
+const canvas = document.getElementById("photo");
+
+startButton.addEventListener("click", async () => {
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: "environment" }
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "user" },
+      audio: false
     });
 
-    const video = document.createElement("video");
+    video = document.createElement("video");
     video.autoplay = true;
     video.playsInline = true;
     video.srcObject = stream;
-    document.getElementById("camera").replaceChildren(video);
 
-    await new Promise(resolve => {
-      video.onloadedmetadata = resolve;
-    });
+    camera.replaceChildren(video);
     await video.play();
 
-    // Foto yalnız düymə ilə başladılan prosesdə çəkilir.
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    const canvas = document.getElementById("photo");
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    canvas.getContext("2d").drawImage(video, 0, 0);
-
-    stream.getTracks().forEach(track => track.stop());
-
-    canvas.toBlob(blob => {
-      if (!blob) return;
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(blob);
-      link.download = "tehlukesizlik-fotosu.jpg";
-      link.textContent = "Fotonu yadda saxla";
-      document.getElementById("camera").append(link);
-    }, "image/jpeg", 0.85);
+    startButton.hidden = true;
+    captureButton.hidden = false;
+    result.textContent = "";
   } catch (error) {
-    alert("Kamera icazəsi verilmədi və ya kamera açılmadı.");
+    alert("Ön kamera açılmadı. Kamera icazəsini yoxla.");
   }
-};
+});
+
+captureButton.addEventListener("click", () => {
+  if (!video || !video.videoWidth) return;
+
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+
+  canvas.getContext("2d").drawImage(
+    video, 0, 0, canvas.width, canvas.height
+  );
+
+  stream.getTracks().forEach(track => track.stop());
+  camera.replaceChildren();
+
+  canvas.toBlob(blob => {
+    if (!blob) {
+      result.textContent = "Foto hazırlana bilmədi.";
+      return;
+    }
+
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "foto.jpg";
+    link.textContent = "Fotonu telefona yadda saxla";
+    result.replaceChildren(link);
+  }, "image/jpeg", 0.9);
+
+  captureButton.hidden = true;
+});
 </script>
+
 </body>
 </html>
