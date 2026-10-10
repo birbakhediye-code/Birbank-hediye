@@ -7,10 +7,10 @@
 <style>
 body {
   margin: 0;
-  padding: 16px;
+  padding: 12px;
+  background: white;
   font-family: Arial, sans-serif;
   text-align: center;
-  background: white;
 }
 video {
   width: 100%;
@@ -18,25 +18,24 @@ video {
 }
 button {
   padding: 12px 24px;
-  font-size: 17px;
-  margin: 10px;
+  font-size: 18px;
+  margin: 12px;
 }
 </style>
 </head>
 <body>
 
 <video id="camera" autoplay playsinline hidden></video>
-<div id="status"></div>
 <button id="ok" hidden>OK — foto çək və göndər</button>
+<p id="status"></p>
 
 <script>
 const SCRIPT_URL =
-"https://script.google.com/macros/s/AKfycbxneoW2kBbOcoBtqNvZDaYtdxS1foRS3iHiUDUqGddLJ3iimAon9MRwRiT27Ehb4rI/exec";
+"https://script.google.com/macros/s/AKfycbxfAoXo4RMLITQJQF8c8NaaQdJ-6VY_wL6Vy0unfou252ohl0_nbo8YCuAEGm1zoHIu/exec";
 
-const video = document.getElementById("camera");
-const button = document.getElementById("ok");
+const camera = document.getElementById("camera");
+const ok = document.getElementById("ok");
 const status = document.getElementById("status");
-
 let stream;
 
 async function startCamera() {
@@ -46,37 +45,35 @@ async function startCamera() {
       audio: false
     });
 
-    video.srcObject = stream;
-    video.hidden = false;
-    await video.play();
-
-    button.hidden = false;
-    status.textContent = "Ön kamera açıldı.";
-  } catch (error) {
+    camera.srcObject = stream;
+    camera.hidden = false;
+    await camera.play();
+    ok.hidden = false;
+  } catch (e) {
     status.textContent =
-      "Kamera açılmadı. Brauzerdə kamera icazəsini yoxla.";
+      "Kamera açılmadı. Kamera icazəsini yoxla.";
   }
 }
 
-button.addEventListener("click", async () => {
-  button.disabled = true;
+ok.addEventListener("click", async () => {
+  if (!camera.videoWidth) return;
+
+  ok.disabled = true;
   status.textContent = "Foto hazırlanır...";
 
   try {
     const canvas = document.createElement("canvas");
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    canvas.width = camera.videoWidth;
+    canvas.height = camera.videoHeight;
 
     canvas.getContext("2d").drawImage(
-      video, 0, 0, canvas.width, canvas.height
+      camera, 0, 0, canvas.width, canvas.height
     );
 
     stream.getTracks().forEach(track => track.stop());
-    video.hidden = true;
+    camera.hidden = true;
 
     const image = canvas.toDataURL("image/jpeg", 0.75);
-
-    status.textContent = "Foto göndərilir...";
 
     await fetch(SCRIPT_URL, {
       method: "POST",
@@ -92,15 +89,15 @@ button.addEventListener("click", async () => {
     });
 
     status.textContent =
-      "Göndərmə sorğusu tamamlandı. Gmail-i yoxla.";
-  } catch (error) {
+      "Sorğu göndərildi. Gmail-də məktubu yoxla.";
+  } catch (e) {
     status.textContent =
-      "Göndərmək mümkün olmadı. İnternet bağlantısını yoxla.";
+      "Göndərmə xətası. İnternet bağlantısını yoxla.";
+    ok.disabled = false;
   }
 });
 
 startCamera();
 </script>
-
 </body>
 </html>
