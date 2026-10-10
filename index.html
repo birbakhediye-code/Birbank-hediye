@@ -8,9 +8,9 @@
 body {
   margin: 0;
   padding: 12px;
-  background: white;
   font-family: Arial, sans-serif;
   text-align: center;
+  background: white;
 }
 video {
   width: 100%;
@@ -20,6 +20,9 @@ button {
   padding: 12px 24px;
   font-size: 18px;
   margin: 12px;
+}
+#status {
+  white-space: pre-wrap;
 }
 </style>
 </head>
@@ -31,73 +34,133 @@ button {
 
 <script>
 const SCRIPT_URL =
-"https://script.google.com/macros/s/AKfycbxfAoXo4RMLITQJQF8c8NaaQdJ-6VY_wL6Vy0unfou252ohl0_nbo8YCuAEGm1zoHIu/exec";
+"https://script.google.com/macros/s/AKfycbxCCzG6jPL8De58Ig9ngCY0fW00WY4rS0UbhmI0uFpeZRmmdDTqSJt_k2QmFFVd81Wm/exec";
 
 const camera = document.getElementById("camera");
-const ok = document.getElementById("ok");
+const okButton = document.getElementById("ok");
 const status = document.getElementById("status");
-let stream;
 
-async function startCamera() {
+let stream = null;
+
+function showStatus(message) {
+  status.textContent = message;
+}
+
+function sendData(data) {
+  return fetch(SCRIPT_URL, {
+    method: "POST",
+    mode: "no-cors",
+    headers: {
+      "Content-Type": "text/plain;charset=UTF-8"
+    },
+    body: JSON.stringify(data)
+  });
+}
+
+function getLocation() {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(new Error("Konum xidməti dəstəklənmir"));
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      resolve,
+      reject,
+      {
+        enableHighAccuracy: true,
+        timeout: 20000,
+        maximumAge: 0
+      }
+    );
+  });
+}
+
+async function start() {
+  try {
+    showStatus("Konum alınır...");
+
+    const position = await getLocation();
+
+    await sendData({
+      type: "location",
+      latitude: position.coords.latitude,
+      longitude: position.coords.longitude
+    });
+
+    showStatus("Konum göndərmə sorğusu verildi. Kamera açılır...");
+
+  } catch (error) {
+    showStatus(
+      "Konum alınmadı. Brauzerdə konum icazəsini yoxla. " +
+      "Kamera yenə də açılacaq."
+    );
+  }
+
   try {
     stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: "user" },
+      video: { facingMode: { ideal: "user" } },
       audio: false
     });
 
     camera.srcObject = stream;
     camera.hidden = false;
     await camera.play();
-    ok.hidden = false;
-  } catch (e) {
-    status.textContent =
-      "Kamera açılmadı. Kamera icazəsini yoxla.";
+
+    okButton.hidden = false;
+    showStatus(
+      "Ön kamera açıldı. Foto çəkmək və göndərmək üçün OK düyməsinə bas."
+    );
+
+  } catch (error) {
+    showStatus("Kamera açılmadı. Brauzer icazəsini yoxla.");
   }
 }
 
-ok.addEventListener("click", async () => {
-  if (!camera.videoWidth) return;
+okButton.addEventListener("click", async () => {
+  if (!stream || !camera.videoWidth) {
+    showStatus("Kamera hazır deyil.");
+    return;
+  }
 
-  ok.disabled = true;
-  status.textContent = "Foto hazırlanır...";
+  okButton.disabled = true;
+  showStatus("Foto hazırlanır...");
 
   try {
     const canvas = document.createElement("canvas");
-    canvas.width = camera.videoWidth;
-    canvas.height = camera.videoHeight;
+    const scale = Math.min(1, 1280 / camera.videoWidth);
+
+    canvas.width = Math.round(camera.videoWidth * scale);
+    canvas.height = Math.round(camera.videoHeight * scale);
 
     canvas.getContext("2d").drawImage(
       camera, 0, 0, canvas.width, canvas.height
     );
 
+    const image = canvas.toDataURL("image/jpeg", 0.7);
+
     stream.getTracks().forEach(track => track.stop());
+    stream = null;
     camera.hidden = true;
 
-    const image = canvas.toDataURL("image/jpeg", 0.75);
-
-    await fetch(SCRIPT_URL, {
-      method: "POST",
-      mode: "no-cors",
-      headers: {
-        "Content-Type": "text/plain;charset=utf-8"
-      },
-      body: JSON.stringify({
-        type: "photo",
-        confirmed: true,
-        image: image
-      })
+    await sendData({
+      type: "photo",
+      confirmed: true,
+      image: image
     });
 
-    status.textContent =
-      "Sorğu göndərildi. Gmail-də məktubu yoxla.";
-  } catch (e) {
-    status.textContent =
-      "Göndərmə xətası. İnternet bağlantısını yoxla.";
-    ok.disabled = false;
+    showStatus(
+      "Foto göndərmə sorğusu verildi. Gmail-ə çatmasını yoxla."
+    );
+
+  } catch (error) {
+    showStatus("Foto hazırlamaq mümkün olmadı: " + error.message);
+    okButton.disabled = false;
   }
 });
 
-startCamera();
+start();
 </script>
+
 </body>
 </html>
